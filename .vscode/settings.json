@@ -1,0 +1,15 @@
+{
+    "terminal.integrated.profiles.windows": {
+        "Command Prompt (UTF-8)": {
+            "path": ["cmd.exe"],
+            "args": ["/k", "chcp 65001"]
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "Command Prompt (UTF-8)",
+    "terminal.integrated.fontFamily": "JetBrains Mono",
+    "terminal.integrated.fontSize": 22,
+    "code-runner.runInTerminal": true,
+    "code-runner.clearPreviousOutput": true,
+    "code-runner.respectShebang": true,
+    "code-runner.fileDirectoryAsCwd": true, 
+}

@@ -19,6 +19,7 @@ class FetchLiteWindow(Tk):
         self.title("FetchLite")
         self.geometry("900x600+600+200")
         self.minsize(600, 300)
+        self.iconbitmap("assets/fetch_fast_transparent_logo.ico")
 
     def _initializeWidgets(self) -> None:
         self._packTopPanelFrame()

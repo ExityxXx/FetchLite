@@ -1,46 +1,81 @@
-from tkinter import *
-from tkinter import ttk
-from tkinter.messagebox import showinfo, showwarning
-from tkinter import filedialog as fd
+from PySide6.QtWidgets import (
+    QMainWindow,
+    QWidget,
+    QLabel,
+    QPushButton,
+    QMessageBox,
+    QHBoxLayout,
+    QVBoxLayout,
+    QComboBox,
+    QLineEdit,
+    QTabWidget,
+    QTextEdit,
+    QTableWidget,
+    QTableWidgetItem,
+    QMenu)
+
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QAction
+
 from request_wrapper import RequestWrapper
 import constants
-import sys
+import json
 
-
-class FetchLiteWindow(Tk):
+class FetchLiteWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self._initializeSelfAttributes()
-        self._initializeWindowParameters()
-        self._initializeWidgets()
-
-    def _initializeSelfAttributes(self) -> None:
+        self._initSelfAttrs()
+        self._initWindowParams()
+        self._initWidgets()
+        
+    def _initSelfAttrs(self) -> None:
         self.request_types : list[str] = constants.RequestTypes.getAll()
 
-    def _initializeWindowParameters(self) -> None:
-        self.title("FetchLite")
-        self.geometry("900x600+600+200")
-        self.minsize(600, 300)
-        if getattr(sys, "frozen", False):
-            self.iconbitmap("_internal/assets/fetch_fast_transparent_logo.ico")
-        else:
-            self.iconbitmap("assets/fetch_fast_transparent_logo.ico")
+    def _initWindowParams(self) -> None:
+        self.setWindowTitle("FetchLite - API client")
+        self.resize(900, 700)
+        self.central = QWidget()
+        self.setCentralWidget(self.central)
+        self.main_vbox_layout = QVBoxLayout(self.central)
 
-    def _initializeWidgets(self) -> None:
+    def _initWidgets(self) -> None:
         self._packTopPanelFrame()
         self._packCentralPanelFrame()
-    
+        self._packMenuBar()
+        self._packStatusBar()
+
     def _packTopPanelFrame(self) -> None:
+        def getTableData(table: QTableWidget) -> list:
+            data = {}
+            for row in range(table.rowCount()):
+                for col in range(table.columnCount() - 1):
+                    item = table.item(row, col)
+                    if item:
+                        next_item = table.item(row, col+1)
+                        data[item.text()] = next_item.text()
+                    else:
+                        data[""] = ""
+            return data
+        
         def sendRequest():
-            rtype = request_type_box.get()
-            url = request_url_entry.get()
+            rtype = request_type_box.currentText()
+            url = request_url_entry.text()
 
             if not url:
-                showinfo("Ввод", "Поле ввода URL пустое!")
+                mbox = QMessageBox()
+                mbox.setWindowTitle("Ввод")
+                mbox.setText("Поле ввода URL пустое!")
+                mbox.setIcon(QMessageBox.Icon.Information)
+                mbox.exec()
                 return
             
-            headers = self.headers_text.get("1.0", "end-1c")
-            body = self.post_body_text.get("1.0", "end-1c")
+            headers = getTableData(self.headers_table)
+            body = self.post_body_text.toPlainText()
+            print(f"rtype = {rtype}")
+            print(f"url = {url}")
+            print(f"headers = {headers}")
+            print(f"body = {body}")
+
             is_data_for_change = rtype in [
                 constants.RequestTypes.POST,
                 constants.RequestTypes.PATCH,
@@ -48,19 +83,20 @@ class FetchLiteWindow(Tk):
             ]
 
             if not headers and is_data_for_change:
-                showwarning(
-                    "Установка заголовков",
-                    "Если вы пытаетесь отправить запрос типа POST/PUT/PATCH\n" \
+                mbox = QMessageBox()
+                mbox.setWindowTitle("Установка заголовков")
+                mbox.setText("Если вы пытаетесь отправить запрос типа POST/PUT/PATCH\n" \
                     "и любой другой запрос отправляющие данные на сервер\n" \
                     "вам необходимо заполнить заголовок с ключом Content-Type что бы избежать ошибки.\n\n" \
-                    "Content-Type: application/json; charset=utf-8"
-                )
+                    "Content-Type: application/json; charset=utf-8")
+                mbox.setIcon(QMessageBox.Icon.Warning)
+                mbox.exec()
             if not body and is_data_for_change:
-                showwarning(
-                    "Отсутствие тела",
-                    "Отсутствует тело для отправки запроса."
-                )
-            
+                mbox = QMessageBox()
+                mbox.setWindowTitle("Отсутствие тела")
+                mbox.setText("Отсутствует тело для отправки запроса.")
+                mbox.setIcon(QMessageBox.Icon.Warning)
+                mbox.exec()
             request = RequestWrapper(
                 type=rtype,
                 url=url,
@@ -74,174 +110,143 @@ class FetchLiteWindow(Tk):
                 return
             
             if response.status_code <= 400:
-                self.info_label.config(text=f"Статус: {response.status_code} OK")
-                self.info_label.config(fg="#459949")
-                self.response_text.delete("1.0", "end")
-                self.response_text.insert("1.0", response.text)
-            else:
-                self.info_label.config(text=f"Статус: {response.status_code} FAIL")
-                self.info_label.config(fg="#994557")
+                self.response_text.setPlainText(response.text)
 
-        self.top_note = ttk.Notebook(
-            master=self,
-            height=50
-        )
-        
-        self.top_panel = Frame(
-            master=self.top_note,
-            background=constants.ColorConfig.TopPanel.BACKGROUND
-        )
-        Label(self.top_note, text="FetchLite - Создано для вас.", font=("Segoe UI", 10)).place(relx=1.0, x=-3, y=-3, anchor="ne")
-        Label(self.top_panel,
-              text="Тип:",
-              background=constants.ColorConfig.TopPanel.BACKGROUND).pack(side=LEFT, padx=(8, 2))
-        
-        request_type_box = ttk.Combobox(self.top_panel,
-              values=self.request_types,
-              state="readonly", width=10)
-        
-        request_type_box.pack(side=LEFT, padx=2)
-        request_type_box.set(constants.RequestTypes.GET)
-        
-        Label(self.top_panel,
-              text="URL:",
-              background=constants.ColorConfig.TopPanel.BACKGROUND).pack(side=LEFT, padx=(8, 2))
-        
-        request_url_entry = ttk.Entry(self.top_panel, width=55)
-        request_url_entry.pack(side=LEFT, padx=2, anchor="w")
-        
-        ttk.Button(self.top_panel,
-            text="Отправить запрос",
-            cursor="hand2",
-            command=sendRequest).pack(side=RIGHT, padx=8, anchor="w")
-        
-        ttk.Button(self.top_panel,
-            text="Сохранить",
-            cursor="hand2",
-            command=self.saveToFile).pack(side=RIGHT, padx=(8, 2), anchor="w")
-                
-        ttk.Button(self.top_panel,
-            text="Импорт JSON",
-            cursor="hand2",
-            command=self.importFile).pack(side=RIGHT, padx=(8, 2), anchor="w")
+        self.top_panel_layout = QHBoxLayout()
 
-        self.top_note.add(self.top_panel, text="Создать запрос")
-        self.top_note.pack(padx=6, pady=6,
-                       side="top", fill="x")
-        
+        request_type_box = QComboBox()
+        request_type_box.addItems(self.request_types)
+        request_type_box.setEditable(False)
+        request_type_box.setCurrentIndex(0)
+
+        request_url_entry = QLineEdit()
+        request_url_entry.setPlaceholderText("https://placeholderapi/get")
+
+        send_request_button = QPushButton("Отправить запрос")
+        send_request_button.clicked.connect(sendRequest)
+
+        self.top_panel_layout.addWidget(QLabel("Метод: "))
+        self.top_panel_layout.addWidget(request_type_box)
+        self.top_panel_layout.addWidget(QLabel("URL: "))
+        self.top_panel_layout.addWidget(request_url_entry)
+        self.top_panel_layout.addWidget(send_request_button)
+        self.main_vbox_layout.addLayout(self.top_panel_layout)
+        self.main_vbox_layout.addStretch()
+
     def _packCentralPanelFrame(self) -> None:
-        central_note = ttk.Notebook(self)
-
-        central_panel = Frame(
-            master=central_note,
-            background=constants.ColorConfig.CentralPanel.BACKGROUND
-        )
-        headers_panel = Frame(
-            master=central_note,
-            background=constants.ColorConfig.CentralPanel.BACKGROUND
-        )
-        post_body_panel = Frame(
-            master=central_note,
-            background=constants.ColorConfig.CentralPanel.BACKGROUND
-        )
-
-        self.info_label = Label(central_note, text="Запрос не отправлен", font=("Segoe UI", 10))
-        self.info_label.place(relx=1.0, x=-3, y=-2, anchor="ne")
+        central_note = QTabWidget()
+        font_size: int = 14
         
-        self.response_text = Text(central_panel,font=("Consolas", 13), padx=6, pady=6, bg="#262626", fg="white")
-        self.response_text.pack(expand=1, fill="both", padx=6, pady=6)
+        central_panel = QWidget()
+        central_panel_layout = QVBoxLayout(central_panel)
+        self.response_text = QTextEdit()
+        self.response_text.setFontPointSize(font_size)
 
-        self.headers_text = Text(headers_panel,font=("Consolas", 13), padx=6, pady=6, bg="#262626", fg="white")
-        self.headers_text.pack(expand=1, fill="both", padx=6, pady=6)
-        self.headers_text.insert(
-            "1.0",
-            "Content-Type: application/json; charset=utf-8"
-        )
-        self.post_body_text = Text(post_body_panel,font=("Consolas", 13), padx=6, pady=6, bg="#262626", fg="white")
-        self.post_body_text.pack(expand=1, fill="both", padx=6, pady=6)
-        self.post_body_text.insert(
-            "1.0",
-            "{\"\": \"\"}"
-        )
-        central_note.add(central_panel, text="Результат запроса")
-        central_note.add(headers_panel, text="Заголовки")
-        central_note.add(post_body_panel, text="Тело к отправке")
-        central_note.pack(expand=1, fill="both", padx=6, pady=6)
+        headers_panel = QWidget()
+        headers_panel_layout = QVBoxLayout(headers_panel)
+        headers_top_layout = QHBoxLayout()
 
-    def _setHeadersMenu(self) -> None:
-        window = Toplevel(self)
-        window.title("Быстрая настройка заголовков")
-        window.geometry("350x58+600+150")
-        window.minsize(350, 58)
-        window.maxsize(800, 58)
-        window.focus()
-        window.grab_set()
-        window.columnconfigure(index=0, weight=1)
-        window.resizable(1, 0)
-        row0 = ttk.Frame(master=window)
-        row0.grid(
-            row=0,
-            column=0,
-            columnspan=3,
-            sticky="nsew"
-        )
-        row0.columnconfigure(index=1, weight=1)
+        self.header_key_le = QLineEdit()
+        self.header_val_le = QLineEdit()
 
-        ttk.Label(
-            master=row0,
-            text="Ключ:"
-        ).grid(row=0, column=0, padx=6, pady=3)
+        add_row_pb = QPushButton("Добавить строку")
+        add_row_pb.clicked.connect(self.addRow)
 
-        key_entry = ttk.Entry(master=row0)
-        key_entry.grid(row=0, column=1, padx=6, pady=3, sticky="nsew")
+        del_row_pb = QPushButton("Удалить выбранное")
+        del_row_pb.clicked.connect(self.deleteSelectedRow)
 
+        headers_top_layout.addWidget(QLabel("Ключ: "))
+        headers_top_layout.addWidget(self.header_key_le)
+        headers_top_layout.addWidget(QLabel("Значение: "))
+        headers_top_layout.addWidget(self.header_val_le)
+        headers_top_layout.addStretch()
+        headers_top_layout.addWidget(add_row_pb)
+        headers_top_layout.addWidget(del_row_pb)
+
+        self.headers_table = QTableWidget(1, 2)
+        self.headers_table.setHorizontalHeaderLabels(["Ключ", "Значение"])
+        self.headers_table.setItem(0, 0, QTableWidgetItem('Content-Type'))
+        self.headers_table.setItem(0, 1, QTableWidgetItem('application/json; charset=utf-8'))
+        self.headers_table.horizontalHeader().setStretchLastSection(True)
+        self.headers_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.headers_table.customContextMenuRequested.connect(self.headersTableContextMenu)
+
+        post_body_panel = QWidget()
+        post_body_panel_layout = QVBoxLayout(post_body_panel)
+        self.post_body_text = QTextEdit()
+        self.post_body_text.setFontPointSize(font_size)
+        self.post_body_text.setText("{\"\": \"\"}")
+
+        central_note.addTab(central_panel, "Результат запроса")
+        central_note.addTab(headers_panel, "Заголовки")
+        central_note.addTab(post_body_panel, "Тело к отправке")
         
-        row1 = ttk.Frame(master=window)
-        row1.grid(
-            row=1,
-            column=0,
-            columnspan=2,
-            sticky="nsew"
-        )
-        row1.columnconfigure(index=1, weight=1)
+        central_panel_layout.addWidget(self.response_text)
+        headers_panel_layout.addLayout(headers_top_layout)
+        headers_panel_layout.addWidget(self.headers_table)
+        post_body_panel_layout.addWidget(self.post_body_text)
+        self.main_vbox_layout.addWidget(central_note, stretch=1)
 
-        ttk.Label(
-            master=row1,
-            text="Значение:"
-        ).grid(row=0, column=0, padx=6, pady=3)
+    def _packMenuBar(self) -> None:
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu("Файл")
+        
+        new_request_action = QAction("Создать новый запрос", self)
+        save_request_action = QAction("Сохранить запрос в файл", self)
+        load_request_action = QAction("Импортировать файл в тело", self)
 
-        key_value = ttk.Entry(master=row1)
-        key_value.grid(row=0, column=1, padx=6, pady=3, sticky="nsew")
+        http_action = QAction("HTTP", self)
+        help_action = QAction("Помощь", self)
 
-    def saveToFile(self) -> None:
-        file_path = fd.asksaveasfilename(
-            defaultextension=".json",
-            title="Выберите файл для сохранения",
-            filetypes=[("JSON файлы", "*.json"), ("Текстовые файлы", "*.txt"), ("Все файлы", "*.*")]
-        )
+        file_menu.addAction(new_request_action)
+        file_menu.addAction(save_request_action)
+        file_menu.addAction(load_request_action)
+        
+        load_headers_menu = file_menu.addMenu("Импортировать заголовки")
+        load_headers_menu.addAction(http_action)
+        load_headers_menu.addSeparator()
+        load_headers_menu.addAction(help_action)
 
-        if file_path:
-            with open(file_path, 'w', encoding='utf-8') as file_to_save:
-                response_text = self.response_text.get("1.0", "end-1c")
-                file_to_save.write(response_text)
+    def _packStatusBar(self) -> None:
+        status_bar = self.statusBar()
+        status_bar.addWidget(QLabel("   API Client   "))
+        response_label = QLabel(" Запрос не отправлен ")
+        status_bar.addWidget(response_label)
 
-            self.info_label.config(text=f"Файл сохранен: {file_path}")
-            self.info_label.config(fg="#459949")
+    def headersTableContextMenu(self, pos) -> None:
+        menu = QMenu()
+    
+        add_row_action = QAction("Добавить строку", self)
+        add_row_action.triggered.connect(self.addRow)
+        
+        del_row_action = QAction("Удалить строку", self)
+        del_row_action.triggered.connect(lambda: self.deleteRowAt(pos))
+        menu.addAction(add_row_action)
+        
+        item_at_pos = self.headers_table.itemAt(pos)
 
-    def importFile(self) -> None:
-        file_path = fd.askopenfilename(
-            defaultextension=".json",
-            title="Выберите файл для чтения",
-            filetypes=(("JSON файлы", "*.json"), ("Текстовые файлы", "*.txt"), ("Все файлы", "*.*"))
-        )
+        if item_at_pos:
+            menu.addAction(del_row_action)
+        
+        menu.exec(self.headers_table.mapToGlobal(pos))
 
-        if file_path:
-            with open(file_path, 'r', encoding='utf-8') as file_for_read:
-                content = file_for_read.read()
-                self.post_body_text.delete("1.0", "end")
-                self.post_body_text.insert("1.0", content)
+    def addRow(self):
+        new_row = self.headers_table.rowCount()
+        self.headers_table.insertRow(new_row)
+        key = self.header_key_le.text()
+        value = self.header_val_le.text()
+        self.headers_table.setItem(new_row, 0, QTableWidgetItem(key if key else ""))
+        self.headers_table.setItem(new_row, 1, QTableWidgetItem(value if value else ""))
+        self.header_key_le.clear()
+        self.header_val_le.clear()
 
-            self.info_label.config(text=f"Файл прочитан: {file_path}")
-            self.info_label.config(fg="#459949")
-    def showWindow(self) -> None:
-        self.mainloop()
+    def deleteSelectedRow(self):
+        selected = self.headers_table.currentRow()
+        if selected != -1:
+            self.headers_table.removeRow(selected)
+    
+    def deleteRowAt(self, pos):
+        target = self.headers_table.itemAt(pos)
+        if target:
+            self.headers_table.removeRow(target.row())
+            

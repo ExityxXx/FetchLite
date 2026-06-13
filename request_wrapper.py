@@ -23,7 +23,7 @@ class RequestWrapper:
         if not self.url:
             raise ValueError("Request sending error. Request url value is None (check wrapper)")
         
-        dict_header: dict = dict(message_from_string(self.getHeaders()).items())
+        # dict_header: dict = dict(message_from_string(self.getHeaders()).items())
         
         try:
             method = self.rtype.lower()
@@ -35,7 +35,7 @@ class RequestWrapper:
             else:
                 response = getattr(requests, method)(
                     url=self.getUrl(),
-                    headers=dict_header,
+                    headers=self.getHeaders(),
                     data=self.getBody(),
                     timeout=5
                 )
